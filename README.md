@@ -13,8 +13,6 @@ Sistem üç bounded context’ten oluşur:
 
 ## Projenin Amacı
 
-Bu proje bir hello world mikroservis örneği değildir. Amaç:
-
 - Gerçek hayatta karşılaşılan yük, retry, duplicate message ve eventual consistency problemlerini ele almak
 - API ve background worker ayrımının neden kritik olduğunu göstermek
 - Outbox, idempotency, saga gibi pattern’leri bilinçli ve servis bazlı uygulamak
@@ -53,7 +51,7 @@ Bu proje bir hello world mikroservis örneği değildir. Amaç:
 - Dockerfile.migrator ile migration yönetimi
 - Docker Compose ile container orchestration
 
-Not: Bu pattern’lerin tamamı her serviste kullanılmamıştır.  
+Not: Bu pattern’lerin tamamı bilinçli olarak her serviste kullanılmamıştır.  
 Aşağıda her pattern’in hangi serviste kullanıldığı açıkça belirtilmiştir.
 
 ---
