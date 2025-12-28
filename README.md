@@ -1,207 +1,285 @@
-﻿# Ecommerce Microservices
+# 🛒 ecommerce-microservices
 
-Bu repository, **mikroservis mimarisi** ve **event-driven tasarım** prensipleri kullanılarak geliştirilmiş örnek bir e-ticaret backend uygulamasıdır.  
-Proje, **yük altında ölçeklenebilirlik**, **güvenilir mesajlaşma**, **idempotent işleme** ve **Docker ile production-benzeri lokal ortam** hedefleriyle tasarlanmıştır.
+🚀 A production-grade, event-driven e-commerce backend built with **.NET**, **RabbitMQ**, **PostgreSQL**, and **Docker**.
 
-Sistem üç bounded context’ten oluşur:
-
-- Order
-- Stock
-- Notification
+This repository demonstrates real-world backend architecture patterns used in high-throughput distributed systems.
 
 ---
 
-## Projenin Amacı
+## ✨ Key Features & Patterns
 
-- Gerçek hayatta karşılaşılan yük, retry, duplicate message ve eventual consistency problemlerini ele almak
-- API ve background worker ayrımının neden kritik olduğunu göstermek
-- Outbox, idempotency, saga gibi pattern’leri bilinçli ve servis bazlı uygulamak
-- Docker ve Docker Compose ile production’a yakın bir local geliştirme ortamı sunmak
-
----
-
-## Mimari Genel Bakış
-
-- Event-driven microservices
-- RabbitMQ ile asenkron iletişim
-- PostgreSQL + EF Core ile transactional güvence
-- API ve Worker bileşenlerinin bilinçli ayrımı
-- Docker Compose ile infra / app profilleri
-- Kubernetes’e birebir taşınabilir yapı
+✔ Event-Driven Architecture  
+✔ Outbox Pattern  
+✔ Idempotent Consumers  
+✔ Worker-based Message Processing  
+✔ Retry & Dead Letter Queue (DLQ)  
+✔ Structured Logging  
+✔ Choreography-based Saga  
+✔ Independent API / Worker scaling  
+✔ Database-per-service  
+✔ Containerized & Kubernetes-friendly design  
 
 ---
 
-## Projede Kullanılan Tüm Pattern ve Özellikler
+## 🧩 Services
 
-- Clean Architecture
-- Event-Driven Architecture
-- Outbox Pattern
-- Idempotent Consumers
-- Logical Exactly-Once Processing
-- At-Least-Once Delivery (RabbitMQ)
-- Saga - Choreography
-- CQRS + MediatR
-- Retry & DLQ
-- Polly Retry / Circuit Breaker
-- Strategy Pattern
-- Unit of Work
-- Generic Repository
-- EF Core Transactions
-- API / Worker ayrımı
-- Dockerfile.migrator ile migration yönetimi
-- Docker Compose ile container orchestration
+### 🛒 Order Service
+- Accepts order creation requests
+- Persists orders and domain events
+- Writes integration events to Outbox table
+- Publishes events via background workers
+- Reacts to stock processing results
 
-Not: Bu pattern’lerin tamamı bilinçli olarak her serviste kullanılmamıştır.  
-Aşağıda her pattern’in hangi serviste kullanıldığı açıkça belirtilmiştir.
+### 📦 Stock Service
+- Consumes OrderCreated events via worker
+- Performs stock deduction
+- Implements retry (max 3) and DLQ
+- Publishes StockProcessCompleted / StockProcessFailed events
+- Ensures idempotent processing
 
----
-
-## Neden API ve Worker Ayrı?
-
-Bu projede API ve Worker bileşenleri bilinçli olarak ayrı container’lar ve ayrı deployment’lar olarak tasarlanmıştır.
-
-### Yük Profilleri Farklıdır
-
-API (HTTP):
-- Kısa ömürlü istekler
-- Düşük latency beklentisi
-- Kullanıcı deneyimi odaklı
-
-Worker (RabbitMQ Consumer):
-- Uzun süren işlemler
-- Yoğun veritabanı erişimi
-- Retry, DLQ ve idempotency maliyeti
-- Throughput odaklı çalışma
-
-### Yoğun Yük Senaryosu
-
-Queue’larda binlerce mesaj biriktiğinde:
-
-API pod sayısı sabit kalır  
-Worker pod sayısı bağımsız olarak arttırılır
-
-- API: 3 pod
-- Worker: 5 -> 10 -> 20 pod
-
-Sonuç:
-- API latency etkilenmez
-- Backpressure izole edilir
-- Sistem öngörülebilir şekilde ölçeklenir
+### 🔔 Notification Service
+- Consumes OrderConfirmed / OrderCancelled events
+- Builds notifications using DB-driven templates
+- Fetches additional customer data if required
+- Uses fallback data when external service is unavailable
+- Implements resilience patterns (retry, circuit breaker)
+- Logs notification results
 
 ---
 
-## Docker ve Docker Compose
+## 🏗️ Internal Architecture (4 Layers)
 
-Proje tamamen Docker üzerinde çalıştırılabilir.
+Each service follows a strict **4-layer architecture**.
 
-### Container Ayrımı
+### 1️⃣ API Layer 🌐
+- HTTP Controllers
+- Request / response mapping
+- Delegates all logic to Application layer
+- No business logic
 
-Her servis için ayrı image’lar bulunur:
+### 2️⃣ Application Layer 🧠
+- Business rules & use cases
+- Application services & handlers
+- Workflow orchestration
+- Interface definitions for Infrastructure
 
-- Service.Api
-- Service.Worker
-- Service.Migrator
+### 3️⃣ Infrastructure Layer 🔌
+- EF Core & database access
+- Entity configurations
+- Generic repositories
+- Outbox & ProcessedMessages persistence
+- RabbitMQ & external service integrations
 
-### Migration Yönetimi
-
-- Her servis için Dockerfile.migrator vardır
-- Migration’lar runtime sırasında çalışmaz
-- Local, CI/CD veya Kubernetes Job olarak çalıştırılabilir
+### 4️⃣ Worker Layer ⚙️
+- Background jobs
+- RabbitMQ consumers
+- Retry & DLQ handling
+- Idempotency checks
+- Event publishing
 
 ---
 
-## Docker ile Çalıştırma
+## 🔀 API vs Worker Separation
 
-Altyapıyı başlatmak için:
+### API
+- Handles HTTP traffic only
+- Stateless
+- Never consumes messages
 
+### Worker
+- Consumes RabbitMQ messages
+- Executes background jobs
+- Handles retries, DLQ, idempotency
+- Publishes new events
+
+This separation allows **independent scaling** under heavy load.
+
+---
+
+## 🧠 Core Patterns
+
+### 📦 Outbox Pattern
+- Domain events are saved in the same DB transaction
+- Background workers publish events asynchronously
+- Prevents message loss and inconsistent state
+
+### ♻️ Idempotent Consumers
+- Each consumed message is recorded in `ProcessedMessages`
+- Duplicate deliveries are ignored
+- Guarantees exactly-once business behavior
+
+### 🔄 Choreography-Based Saga
+- No central orchestrator
+- Services react to events
+- Flow: Order → Stock → Order → Notification
+
+### 🚨 Retry & Dead Letter Queue
+- Stock processing retries up to 3 times
+- Failed messages are routed to DLQ
+- Failure events are still published
+
+---
+
+## 🧾 Logging
+
+Structured logging is applied across all layers.
+
+- API: request & response logs
+- Application: business decisions
+- Worker:
+  - Message lifecycle
+  - Retry attempts
+  - DLQ routing
+  - Idempotency decisions
+
+Logs are designed for debugging, monitoring, and production troubleshooting.
+
+---
+
+## 🧱 System Architecture
+
+```mermaid
+graph LR
+    Client --> OrderAPI
+    OrderAPI --> OrderDB
+    OrderAPI --> Outbox
+    Outbox --> OrderOutboxWorker
+    OrderOutboxWorker --> RabbitOrderExchange
+    RabbitOrderExchange --> StockWorker
+    StockWorker --> StockDB
+    StockWorker --> RabbitStockExchange
+    RabbitStockExchange --> OrderWorker
+    OrderWorker --> OrderDB
+    RabbitOrderExchange --> NotificationWorker
+    NotificationWorker --> NotificationDB
+    NotificationWorker --> CustomerService
+```
+
+---
+
+## 🔄 End-to-End Event Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant OrderAPI
+    participant OrderDB
+    participant Outbox
+    participant OrderWorker
+    participant RabbitMQ
+    participant StockWorker
+    participant StockDB
+    participant NotificationWorker
+    participant NotificationDB
+    participant CustomerService
+
+    Client->>OrderAPI: CreateOrder
+    OrderAPI->>OrderDB: Save Order
+    OrderAPI->>Outbox: Save OrderCreated
+
+    OrderWorker->>Outbox: Read events
+    OrderWorker->>RabbitMQ: Publish OrderCreated
+
+    StockWorker->>RabbitMQ: Consume OrderCreated
+    StockWorker->>StockDB: Idempotency check
+
+    alt Stock available
+        StockWorker->>StockDB: Decrease stock
+        StockWorker->>RabbitMQ: Publish StockProcessCompleted
+    else Stock not available
+        StockWorker->>StockDB: Retry (max 3)
+        StockWorker->>RabbitMQ: Publish StockProcessFailed (DLQ)
+    end
+
+    OrderWorker->>RabbitMQ: Consume stock result
+    alt Completed
+        OrderWorker->>RabbitMQ: Publish OrderConfirmed
+    else Failed
+        OrderWorker->>RabbitMQ: Publish OrderCancelled
+    end
+
+    NotificationWorker->>RabbitMQ: Consume OrderConfirmed / Cancelled
+    NotificationWorker->>NotificationDB: Load templates
+    NotificationWorker->>CustomerService: Fetch customer data
+    NotificationWorker->>NotificationDB: Save notification log
+```
+
+---
+
+## 🗄️ Database Migration Strategy
+
+Migrations are executed **before** application containers start.
+
+### Flow
+1. Infrastructure starts (PostgreSQL, RabbitMQ)
+2. Migrator containers apply EF Core migrations and exit
+3. API & Worker containers start
+
+APIs and Workers never run migrations.
+
+---
+
+## 🐳 Docker Architecture
+
+Each service is deployed using three container types.
+
+### 🌐 API Container
+- Hosts HTTP endpoints
+- Stateless
+- Scales by HTTP traffic
+
+### ⚙️ Worker Container
+- Runs background jobs
+- Consumes RabbitMQ messages
+- Handles retry, DLQ, idempotency
+- Scales by queue depth
+
+### 🗄️ Migrator Container
+- Applies database migrations
+- Runs once and exits
+
+---
+
+## 🧩 Docker Compose Profiles
+
+### infra
+- PostgreSQL
+- RabbitMQ
+
+### app
+- Migrators
+- APIs
+- Workers
+
+### Startup Order
+
+```bash
 docker compose --profile infra up -d
-
-Uygulama servislerini başlatmak için:
-
-docker compose --profile app up -d --build
-
-Sadece belirli bir API değiştiyse:
-
-docker compose up -d --build order-api
+docker compose --profile app up -d
+```
 
 ---
 
-## Pattern ve Feature Referansları (Servis Bazlı)
+## 📈 Scalability
 
-### Clean Architecture
-Kullanıldığı servisler:
-- Order
-- Stock
-- Notification
+- API scales based on HTTP load
+- Worker scales based on queue depth
+- Message spikes do not affect API availability
 
----
-
-### Outbox Pattern
-Kullanıldığı servisler:
-- Order
-- Stock
-- Notification
+Designed to be Kubernetes-ready.
 
 ---
 
-### CQRS (MediatR)
-Kullanıldığı servisler:
-- Order
+## 🚀 Possible Improvements
+
+- FluentValidation
+- Dedicated DLQ consumers
+- Distributed tracing (OpenTelemetry)
+- Metrics (Prometheus / Grafana)
+- Authentication & Authorization
 
 ---
 
-### Saga - Choreography
-Kullanıldığı servisler:
-- Order
+## 📄 License
 
----
-
-### Idempotent Consumers
-Kullanıldığı servisler:
-- Order
-- Stock
-- Notification
-
----
-
-### Retry & DLQ
-Kullanıldığı servisler:
-- Order
-- Stock
-
----
-
-### Polly Retry / Circuit Breaker
-Kullanıldığı servisler:
-- Notification
-
----
-
-### Strategy Pattern
-Kullanıldığı servisler:
-- Notification
-
----
-
-### API / Worker Ayrımı
-Kullanıldığı servisler:
-- Order
-- Stock
-- Notification
-
----
-
-### Dockerfile.migrator
-Kullanıldığı servisler:
-- Order
-- Stock
-- Notification
-
----
-
-## Son Not
-
-Bu proje:
-- Eğitim ve referans amaçlıdır
-- Production-ready yaklaşımlar gösterir
-- Kubernetes ve cloud ortamlarına kolayca taşınabilir
+MIT License
