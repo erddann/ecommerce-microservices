@@ -1,4 +1,4 @@
-# 🛒 ecommerce-microservices
+# 🛒 Ecommerce-microservices
 
 🚀 A production-grade, event-driven e-commerce backend built with **.NET**, **RabbitMQ**, **PostgreSQL**, and **Docker**.
 
@@ -123,15 +123,6 @@ This separation allows **independent scaling** under heavy load.
 ## 🧾 Logging
 
 Structured logging is applied across all layers.
-
-- API: request & response logs
-- Application: business decisions
-- Worker:
-  - Message lifecycle
-  - Retry attempts
-  - DLQ routing
-  - Idempotency decisions
-
 Logs are designed for debugging, monitoring, and production troubleshooting.
 
 ## 🗄️ Database Migration Strategy
@@ -207,7 +198,3 @@ Designed to be Kubernetes-ready.
 - Authentication & Authorization
 
 ---
-
-## 📄 License
-
-MIT License
