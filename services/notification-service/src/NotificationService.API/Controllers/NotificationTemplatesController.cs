@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using NotificationService.Infrastructure.Abstractions;
+using NotificationService.Application.Contracts;
+using NotificationService.Application.Services;
 using NotificationService.Infrastructure.Domain;
 
 namespace NotificationService.API.Controllers;
@@ -8,26 +9,24 @@ namespace NotificationService.API.Controllers;
 [Route("api/[controller]")]
 public class NotificationTemplatesController : ControllerBase
 {
-    private readonly INotificationTemplateRepository _repository;
-    private readonly IUnitOfWork _unitOfWork;
+	private readonly INotificationTemplateService _templateService;
 
-    public NotificationTemplatesController(INotificationTemplateRepository repository, IUnitOfWork unitOfWork)
+	public NotificationTemplatesController(INotificationTemplateService templateService)
     {
-        _repository = repository;
-        _unitOfWork = unitOfWork;
+		_templateService = templateService;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
-        var templates = await _repository.GetAllAsync(cancellationToken);
+		var templates = await _templateService.GetAllAsync(cancellationToken);
         return Ok(templates);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var template = await _repository.GetByIdAsync(id, cancellationToken);
+		var template = await _templateService.GetByIdAsync(id, cancellationToken);
         if (template == null)
         {
             return NotFound();
@@ -38,25 +37,14 @@ public class NotificationTemplatesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateNotificationTemplateRequest request, CancellationToken cancellationToken)
     {
-        var template = new NotificationTemplate(
-            request.TemplateCode,
-            request.Channel,
-            request.Language,
-            request.Subject,
-            request.Body,
-            request.IsActive,
-            request.Version);
-
-        await _repository.AddAsync(template, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
+		var template = await _templateService.CreateAsync(request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = template.Id }, template);
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateNotificationTemplateRequest request, CancellationToken cancellationToken)
     {
-        var existing = await _repository.GetByIdAsync(id, cancellationToken);
+		var existing = await _templateService.GetByIdAsync(id, cancellationToken);
         if (existing == null)
         {
             return NotFound();
@@ -70,41 +58,18 @@ public class NotificationTemplatesController : ControllerBase
         // But in domain model, they are private set. This is a limitation.
         // For demo, return NoContent without actual update.
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
         return NoContent();
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var template = await _repository.GetByIdAsync(id, cancellationToken);
-        if (template == null)
-        {
-            return NotFound();
-        }
-
-		await _repository.DeleteAsync(id, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+		var deleted = await _templateService.DeleteAsync(id, cancellationToken);
+		if (!deleted)
+		{
+			return NotFound();
+		}
 
         return NoContent();
     }
 }
-
-public record CreateNotificationTemplateRequest(
-    string TemplateCode,
-    NotificationChannel Channel,
-    string Language,
-    string Subject,
-    string Body,
-    bool IsActive,
-    int Version);
-
-public record UpdateNotificationTemplateRequest(
-    string TemplateCode,
-    NotificationChannel Channel,
-    string Language,
-    string Subject,
-    string Body,
-    bool IsActive,
-    int Version);

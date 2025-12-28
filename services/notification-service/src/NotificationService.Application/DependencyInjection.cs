@@ -11,6 +11,7 @@ public static class DependencyInjection
         services.AddScoped<TemplateBinder>();
         services.AddScoped<NotificationContextBuilder>();
 		services.AddScoped<IOrderNotificationService, OrderNotificationService>();
+		services.AddScoped<INotificationTemplateService, NotificationTemplateService>();
         services.AddScoped<IOrderCancelledHandler, OrderCancelledHandler>();
         services.AddScoped<IOrderConfirmedHandler, OrderConfirmedHandler>();
         return services;
