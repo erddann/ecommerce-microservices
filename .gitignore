@@ -1,0 +1,19 @@
+﻿# .NET
+bin/
+obj/
+
+# Visual Studio
+.vs/
+
+# Rider
+.idea/
+
+# User-specific
+*.user
+*.suo
+
+# Logs
+*.log
+
+# Docker
+**/docker-data/

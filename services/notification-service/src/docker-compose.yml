@@ -1,0 +1,50 @@
+# Notification Service Docker Compose
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: notificationdb
+      POSTGRES_USER: notificationuser
+      POSTGRES_PASSWORD: notificationpass
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  notification-api:
+    build:
+      context: .
+      dockerfile: NotificationService.API/Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  notification-worker:
+    build:
+      context: .
+      dockerfile: NotificationService.Worker/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - AUTO_MIGRATE=true  # Enable auto migration for dev/prod
+    depends_on:
+      - postgres
+      - rabbitmq
+
+volumes:
+  postgres_data:

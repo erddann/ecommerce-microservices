@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+
+WORKDIR /src
+
+COPY . .
+
+# dotnet-ef'i LOCAL ve VERSION PINLI kur
+RUN dotnet tool install dotnet-ef \
+    --version 8.0.4 \
+    --tool-path /tools
+
+ENV PATH="/tools:${PATH}"
+
+CMD ["dotnet", "--version"]

@@ -1,0 +1,233 @@
+services:
+
+  # =====================
+  # INFRA
+  # =====================
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    profiles: ["infra"]
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  order-db:
+    image: postgres:16
+    container_name: order-db
+    profiles: ["infra", "migrate"]
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: orderuser
+      POSTGRES_PASSWORD: orderpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - order_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderuser -d orderdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  stock-db:
+    image: postgres:16
+    container_name: stock-db
+    profiles: ["infra", "migrate"]
+    environment:
+      POSTGRES_DB: stockdb
+      POSTGRES_USER: stockuser
+      POSTGRES_PASSWORD: stockpass
+    ports:
+      - "5434:5432"
+    volumes:
+      - stock_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockuser -d stockdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  notification-db:
+    image: postgres:16
+    container_name: notification-db
+    profiles: ["infra", "migrate"]
+    environment:
+      POSTGRES_DB: notificationdb
+      POSTGRES_USER: notificationuser
+      POSTGRES_PASSWORD: notificationpass
+    ports:
+      - "5435:5432"
+    volumes:
+      - notification_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notificationuser -d notificationdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # =====================
+  # MIGRATORS (ONE-SHOT)
+  # =====================
+
+  order-migrator:
+    build:
+      context: services/order-service/src
+      dockerfile: Dockerfile.migrator
+    profiles: ["migrate"]
+    restart: "no"
+    depends_on:
+      order-db:
+        condition: service_healthy
+    command: >
+      dotnet ef database update
+      --project ./OrderService.Infrastructure/OrderService.Infrastructure.csproj
+      --startup-project ./OrderService.Api/OrderService.Api.csproj
+      --connection "Host=order-db;Database=orderdb;Username=orderuser;Password=orderpass"
+
+  stock-migrator:
+    build:
+      context: services/stock-service/src
+      dockerfile: Dockerfile.migrator
+    profiles: ["migrate"]
+    restart: "no"
+    depends_on:
+      stock-db:
+        condition: service_healthy
+    command: >
+      dotnet ef database update
+      --project ./StockService.Infrastructure/StockService.Infrastructure.csproj
+      --startup-project ./StockService.API/StockService.API.csproj
+      --connection "Host=stock-db;Database=stockdb;Username=stockuser;Password=stockpass"
+
+  notification-migrator:
+    build:
+      context: services/notification-service/src
+      dockerfile: Dockerfile.migrator
+    profiles: ["migrate"]
+    restart: "no"
+    depends_on:
+      notification-db:
+        condition: service_healthy
+    command: >
+      dotnet ef database update
+      --project ./NotificationService.Infrastructure/NotificationService.Infrastructure.csproj
+      --startup-project ./NotificationService.API/NotificationService.API.csproj
+      --connection "Host=notification-db;Database=notificationdb;Username=notificationuser;Password=notificationpass"
+
+  # =====================
+  # APPLICATION - API
+  # =====================
+
+  order-api:
+    build:
+      context: services/order-service/src
+      dockerfile: OrderService.Api/Dockerfile
+    container_name: order-api
+    profiles: ["app"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__OrderDb: Host=order-db;Database=orderdb;Username=orderuser;Password=orderpass
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Uri: amqp://guest:guest@rabbitmq:5672/
+    ports:
+      - "5001:8080"
+
+  stock-api:
+    build:
+      context: services/stock-service/src
+      dockerfile: StockService.Api/Dockerfile
+    container_name: stock-api
+    profiles: ["app"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__StockDb: Host=stock-db;Database=stockdb;Username=stockuser;Password=stockpass
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Uri: amqp://guest:guest@rabbitmq:5672/
+    ports:
+      - "5002:8080"
+
+  notification-api:
+    build:
+      context: services/notification-service/src
+      dockerfile: NotificationService.Api/Dockerfile
+    container_name: notification-api
+    profiles: ["app"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__NotificationDb: Host=notification-db;Database=notificationdb;Username=notificationuser;Password=notificationpass
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Uri: amqp://guest:guest@rabbitmq:5672/
+    ports:
+      - "5003:8080"
+
+  # =====================
+  # APPLICATION - WORKER
+  # =====================
+
+  order-worker:
+    build:
+      context: services/order-service/src
+      dockerfile: OrderService.Worker/Dockerfile
+    container_name: order-worker
+    profiles: ["app"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__OrderDb: Host=order-db;Database=orderdb;Username=orderuser;Password=orderpass
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Uri: amqp://guest:guest@rabbitmq:5672/
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+
+  stock-worker:
+    build:
+      context: services/stock-service/src
+      dockerfile: StockService.Worker/Dockerfile
+    container_name: stock-worker
+    profiles: ["app"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__StockDb: Host=stock-db;Database=stockdb;Username=stockuser;Password=stockpass
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Uri: amqp://guest:guest@rabbitmq:5672/
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+
+  notification-worker:
+    build:
+      context: services/notification-service/src
+      dockerfile: NotificationService.Worker/Dockerfile
+    container_name: notification-worker
+    profiles: ["app"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__NotificationDb: Host=notification-db;Database=notificationdb;Username=notificationuser;Password=notificationpass
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Uri: amqp://guest:guest@rabbitmq:5672/
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+
+volumes:
+  order_pg_data:
+  stock_pg_data:
+  notification_pg_data:
